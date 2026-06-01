@@ -143,22 +143,37 @@
     <div style="font-family:'Montserrat',sans-serif; font-weight:900; font-size:1.9rem; letter-spacing:-0.02em; color:#003087; margin-bottom:6px;">MONTIRONI</div>
     <div style="font-family:'DM Mono',monospace; font-size:0.68rem; color:#5a7494; text-transform:uppercase; letter-spacing:0.12em;">Dashboard de Posventa Ford</div>
   </div>
-  <div id="dropzone"
-    onclick="document.getElementById('file-input').click()"
-    ondragover="event.preventDefault(); this.style.borderColor='#003087'"
-    ondragleave="this.style.borderColor='#b8d4f5'"
-    ondrop="handleDrop(event)">
-    <div style="font-size:2.4rem; margin-bottom:1rem;">📂</div>
-    <div style="font-weight:700; font-size:1rem; margin-bottom:8px; color:#0d1b2e;">Arrastrá tu archivo acá</div>
-    <div style="font-family:'DM Mono',monospace; font-size:0.72rem; color:#5a7494; line-height:1.7;">
-      o hacé clic para elegir<br>
-      <span style="color:#003087; font-weight:600;">.CSV</span> exportado del sistema
+  <div style="display:flex; gap:1.5rem; flex-wrap:wrap; justify-content:center;">
+    <div>
+      <div style="font-family:'DM Mono',monospace; font-size:0.65rem; color:#5a7494; text-transform:uppercase; letter-spacing:0.1em; text-align:center; margin-bottom:8px;">OR Facturadas</div>
+      <div id="dropzone"
+        onclick="document.getElementById('file-input').click()"
+        ondragover="event.preventDefault(); this.style.borderColor='#003087'"
+        ondragleave="this.style.borderColor='#b8d4f5'"
+        ondrop="handleDrop(event, 'or')"
+        style="width:200px; border:2px dashed #b8d4f5; border-radius:16px; background:#fff; padding:2rem 1.5rem; text-align:center; cursor:pointer; transition:all 0.2s;">
+        <div style="font-size:2rem; margin-bottom:0.5rem;" id="drop-icon-or">📂</div>
+        <div style="font-family:'DM Mono',monospace; font-size:0.7rem; color:#5a7494;" id="drop-label-or">OR Facturadas.csv</div>
+      </div>
+    </div>
+    <div>
+      <div style="font-family:'DM Mono',monospace; font-size:0.65rem; color:#5a7494; text-transform:uppercase; letter-spacing:0.1em; text-align:center; margin-bottom:8px;">Garantías</div>
+      <div id="dropzone-gtia"
+        onclick="document.getElementById('file-input-gtia').click()"
+        ondragover="event.preventDefault(); this.style.borderColor='#003087'"
+        ondragleave="this.style.borderColor='#b8d4f5'"
+        ondrop="handleDrop(event, 'gtia')"
+        style="width:200px; border:2px dashed #b8d4f5; border-radius:16px; background:#fff; padding:2rem 1.5rem; text-align:center; cursor:pointer; transition:all 0.2s;">
+        <div style="font-size:2rem; margin-bottom:0.5rem;" id="drop-icon-gtia">📂</div>
+        <div style="font-family:'DM Mono',monospace; font-size:0.7rem; color:#5a7494;" id="drop-label-gtia">Garantías.csv</div>
+      </div>
     </div>
   </div>
   <div style="font-family:'DM Mono',monospace; font-size:0.66rem; color:#5a7494; text-align:center; line-height:2;">
-    Google Sheets → Archivo → Descargar → CSV
+    Google Sheets → Archivo → Descargar → CSV (una hoja a la vez)
   </div>
-  <input type="file" id="file-input" accept=".csv" style="display:none" onchange="handleFile(this.files[0])">
+  <input type="file" id="file-input" accept=".csv" style="display:none" onchange="handleFile(this.files[0], 'or')">
+  <input type="file" id="file-input-gtia" accept=".csv" style="display:none" onchange="handleFile(this.files[0], 'gtia')">
 </div>
 
 <header>
@@ -170,6 +185,7 @@
     </div>
   </div>
   <div id="status-badge">Sin datos</div>
+  <div id="gtia-badge" style="font-family:var(--font-m);font-size:0.65rem;padding:3px 10px;border-radius:20px;border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.5);">Gtia: cargando...</div>
 </header>
 
 <div class="tabs">
@@ -1078,32 +1094,69 @@ function showUploadScreen() {
   $('loading').style.display='none';
   $('upload-screen').style.display='flex';
 }
-function handleDrop(e) {
-  e.preventDefault();
-  $('dropzone').style.borderColor='#b8d4f5';
-  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+let orLoaded = false, gtiaFileLoaded = false;
+
+function checkBothLoaded() {
+  if (orLoaded && gtiaFileLoaded) {
+    $('upload-screen').style.display='none';
+    $('loading').style.display='none';
+    populateFilters(); populatePeriodFilters(); render();
+  } else if (orLoaded) {
+    // OR loaded, waiting for gtia
+    $('loading-text').textContent='Ahora cargá el CSV de Garantías...';
+  }
 }
-function handleFile(file) {
+
+function handleDrop(e, type) {
+  e.preventDefault();
+  const dz = type==='gtia' ? $('dropzone-gtia') : $('dropzone');
+  if (dz) dz.style.borderColor='#b8d4f5';
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0], type||'or');
+}
+
+function handleFile(file, type) {
   if (!file) return;
-  $('upload-screen').style.display='none';
-  $('loading').style.display='flex';
-  $('loading-text').textContent='Procesando '+file.name+'...';
-  Papa.parse(file, {
-    header:true, skipEmptyLines:true,
-    complete(res) {
-      if (!res.data || res.data.length < 1) { $('loading-text').textContent='Archivo vacío o formato incorrecto.'; return; }
-      dataLoadedFromFile = true;
-      allData = res.data;
-      $('loading').style.display='none';
-      const b=$('status-badge');
-      b.textContent=allData.length.toLocaleString('es-AR')+' registros · '+file.name;
-      b.className='ok';
-      populateFilters();
-      populatePeriodFilters();
-      loadGtiaSheet();
-    },
-    error() { $('loading-text').textContent='Error al leer el archivo.'; }
-  });
+  type = type || 'or';
+  if (type === 'gtia') {
+    // Parse gtia CSV (no header, raw rows)
+    Papa.parse(file, {
+      header:false, skipEmptyLines:true,
+      complete(res) {
+        if (!res.data || res.data.length < 2) return;
+        const rows = res.data;
+        // skip header row (row 0)
+        gtiaData = rows.slice(1).map(r => {
+          const obj = {};
+          r.forEach((v,idx) => { obj[idx] = v; });
+          return obj;
+        });
+        gtiaFileLoaded = true;
+        $('drop-icon-gtia').textContent = '✅';
+        $('drop-label-gtia').textContent = file.name;
+        checkBothLoaded();
+      }
+    });
+  } else {
+    // Parse OR CSV
+    $('loading').style.display='flex';
+    $('loading-text').textContent='Procesando '+file.name+'...';
+    Papa.parse(file, {
+      header:true, skipEmptyLines:true,
+      complete(res) {
+        if (!res.data || res.data.length < 1) { $('loading-text').textContent='Archivo vacío o formato incorrecto.'; return; }
+        dataLoadedFromFile = true;
+        allData = res.data;
+        orLoaded = true;
+        $('drop-icon-or').textContent = '✅';
+        $('drop-label-or').textContent = file.name;
+        const b=$('status-badge');
+        b.textContent=allData.length.toLocaleString('es-AR')+' registros · '+file.name;
+        b.className='ok';
+        checkBothLoaded();
+      },
+      error() { $('loading-text').textContent='Error al leer el archivo.'; }
+    });
+  }
 }
 function loadGtiaSheet() {
   const proxies = [
@@ -1115,7 +1168,7 @@ function loadGtiaSheet() {
   let gtiaLoaded = false; // prevent double-render from late proxy responses
   function tryGtia(i) {
     if (gtiaLoaded) return;
-    if (i >= proxies.length) { console.warn('Could not load gtia sheet'); render(); return; }
+    if (i >= proxies.length) { console.warn('Could not load gtia sheet'); const gb=$('gtia-badge'); if(gb){gb.textContent='Gtia: error';gb.style.color='#ff6b6b';} render(); return; }
     Papa.parse(proxies[i](GTIA_CSV), {
       download:true, header:false, skipEmptyLines:true,
       complete(res) {
@@ -1128,16 +1181,9 @@ function loadGtiaSheet() {
           r.forEach((v,idx) => { obj[idx] = v; });
           return obj;
         });
-        // DEBUG
-        const dbg = gtiaData.find(r => String(Object.values(r)[1]||'').trim().toLowerCase().startsWith('may-26'));
-        if (dbg) {
-          const v = Object.values(dbg);
-          console.log('may-26 row length:', v.length);
-          v.forEach((val,i) => { if(val && val!=='$0') console.log('  idx '+i+':', val); });
-        } else {
-          console.log('may-26 NOT FOUND, first rows:');
-          gtiaData.slice(0,3).forEach(r => console.log(Object.values(r).slice(0,10)));
-        }
+
+        const gb=$('gtia-badge');
+        if(gb){gb.textContent='Gtia: '+gtiaData.length+' meses';gb.style.borderColor='#4ecdc4';gb.style.color='#4ecdc4';}
         render();
       },
       error() { if (!gtiaLoaded) tryGtia(i+1); }
