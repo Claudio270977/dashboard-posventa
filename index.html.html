@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Posventa Ford — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg: #f4f7fb; --bg2: #ffffff; --bg3: #eaf0f8; --border: #d0dcea;
+    --accent: #003087; --accent2: #0561c1; --accent3: #3a8fe8;
+    --text: #0d1b2e; --muted: #5a7494;
+    --font-d: 'Montserrat', sans-serif; --font-m: 'DM Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-d); min-height: 100vh; }
+
+  header {
+    padding: 1.4rem 2.5rem; background: #0a3a8a;
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+    border-bottom: 1px solid rgba(0,0,0,0.15);
+  }
+  .logo { display: flex; align-items: center; gap: 14px; }
+  .logo-title { font-size: 1.8rem; font-weight: 900; letter-spacing: -0.03em; color: #fff; line-height: 1; }
+  .logo-sub { font-size: 0.65rem; font-family: var(--font-m); color: rgba(255,255,255,0.5); letter-spacing: 0.12em; text-transform: uppercase; margin-top: 3px; }
+  #status-badge {
+    font-family: var(--font-m); font-size: 0.68rem; padding: 4px 12px;
+    border-radius: 20px; border: 1px solid rgba(255,255,255,0.25); color: rgba(255,255,255,0.6);
+    background: rgba(255,255,255,0.08);
+  }
+  #status-badge.ok { border-color: #4ecdc4; color: #4ecdc4; background: rgba(78,205,196,0.12); }
+  #status-badge.err { border-color: #ff6b6b; color: #ff6b6b; }
+
+  /* TABS */
+  .tabs { background: #0a3a8a; padding: 0 2.5rem; display: flex; gap: 4px; border-bottom: 1px solid rgba(0,0,0,0.15); }
+  .tab {
+    font-family: var(--font-m); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 10px 18px; cursor: pointer; color: rgba(255,255,255,0.55); border-bottom: 2px solid transparent;
+    transition: all 0.2s; user-select: none;
+  }
+  .tab:hover { color: rgba(255,255,255,0.85); }
+  .tab.active { color: #fff; border-bottom-color: #4ecdc4; }
+
+  /* FILTERS */
+  .filters {
+    padding: 1rem 2.5rem; display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end;
+    border-bottom: 1px solid rgba(0,0,0,0.1); background: #1a52a8;
+  }
+  .filter-group { display: flex; flex-direction: column; gap: 4px; }
+  .filters label { font-size: 0.63rem; font-family: var(--font-m); color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.08em; }
+  select {
+    background: rgba(255,255,255,0.95); border: 1px solid rgba(255,255,255,0.35); color: #003087;
+    font-family: var(--font-m); font-size: 0.76rem; padding: 6px 10px;
+    border-radius: 6px; outline: none; cursor: pointer; min-width: 125px;
+  }
+  select[multiple] { height: 74px; padding: 3px 6px; }
+  select[multiple] option:checked { background: #003087; color: #fff; }
+  .filter-hint { font-size: 0.58rem; font-family: var(--font-m); color: rgba(255,255,255,0.4); }
+  .btn-reset {
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.22); color: rgba(255,255,255,0.75);
+    font-family: var(--font-m); font-size: 0.68rem; padding: 7px 14px;
+    border-radius: 6px; cursor: pointer; transition: all 0.2s; align-self: flex-end;
+  }
+  .btn-reset:hover { background: rgba(255,255,255,0.18); color: #fff; }
+
+  main { padding: 1.75rem 2.5rem; display: flex; flex-direction: column; gap: 1.75rem; background: #e8f0fb; }
+
+  /* PAGE */
+  .page { display: none; flex-direction: column; gap: 1.75rem; }
+  .page.active { display: flex; }
+
+  /* KPIs */
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 150px)); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .kpi { background: var(--bg2); padding: 1.15rem 1.35rem; display: flex; flex-direction: column; gap: 5px; transition: background 0.2s; }
+  .kpi:hover { background: var(--bg3); }
+  .kpi-label { font-size: 0.62rem; font-family: var(--font-m); color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+  .kpi-value { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.03em; line-height: 1; color: var(--text); }
+  .kpi-value.c1 { color: #003087; } .kpi-value.c2 { color: #0561c1; } .kpi-value.c3 { color: #3a8fe8; } .kpi-value.cg { color: #e05700; }
+  .kpi-sub { font-size: 0.65rem; font-family: var(--font-m); color: var(--muted); }
+
+  /* CHART CARDS */
+  .chart-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.35rem; display: flex; flex-direction: column; gap: 1rem; box-shadow: 0 1px 4px rgba(0,48,135,0.06); }
+  .chart-title { font-size: 0.69rem; font-family: var(--font-m); color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+  .chart-wrap { position: relative; }
+  .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+  @media (max-width: 860px) { .charts-row { grid-template-columns: 1fr; } }
+
+  /* TABLE */
+  .table-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .table-hdr { padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+  .table-hdr-title { font-size: 0.69rem; font-family: var(--font-m); color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+  .table-scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.76rem; }
+  thead th { background: var(--bg3); padding: 9px 13px; text-align: left; font-family: var(--font-m); font-size: 0.63rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; border-bottom: 1px solid var(--border); white-space: nowrap; font-weight: 400; }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.13s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--bg3); }
+  tbody td { padding: 9px 13px; font-family: var(--font-m); font-size: 0.74rem; white-space: nowrap; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 0.63rem; font-family: var(--font-m); border: 1px solid; }
+  .badge-gtia { color: #0561c1; border-color: #b8d4f5; background: #eaf0fb; }
+  .badge-cargo { color: #e05700; border-color: #ffd6a5; background: #fff7ee; }
+  .badge-ci { color: #5a7494; border-color: #d0dcea; background: #f4f7fb; }
+
+  /* NOTE BOX */
+
+  /* LOADING */
+  #loading { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; z-index: 99; }
+  .spinner { width: 34px; height: 34px; border: 2px solid var(--border); border-top-color: #003087; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-family: var(--font-m); font-size: 0.73rem; color: var(--muted); letter-spacing: 0.1em; }
+
+  /* UPLOAD */
+  #upload-screen { display: none; position: fixed; inset: 0; background: var(--bg); z-index: 98; flex-direction: column; align-items: center; justify-content: center; gap: 2rem; }
+  #dropzone { width: 420px; max-width: 90vw; border: 2px dashed #b8d4f5; border-radius: 16px; background: #fff; padding: 3rem 2rem; text-align: center; cursor: pointer; transition: all 0.2s; }
+  #dropzone:hover { border-color: #003087; background: #f0f7ff; }
+
+  .kpi.kpi-hero { background: #1a4a8a; }
+  .kpi.kpi-hero:hover { background: #1e55a0; }
+  .kpi.kpi-hero .kpi-label { color: rgba(255,255,255,0.65); }
+  .kpi.kpi-hero .kpi-value { color: #ffffff; }
+  .kpi.kpi-hero .kpi-sub { color: rgba(255,255,255,0.7); }
+  .kpi.kpi-hero .cmp-up   { color: #6ee7b7; }
+  .kpi.kpi-hero .cmp-down { color: #fca5a5; }
+  .cmp-up   { color: #16a34a; font-weight: 600; }
+  .cmp-down { color: #dc2626; font-weight: 600; }
+  .cmp-flat { color: var(--muted); }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg3); }
+  ::-webkit-scrollbar-thumb { background: #b8d4f5; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loading-text">Cargando datos...</div>
+</div>
+
+<div id="upload-screen">
+  <div style="text-align:center;">
+    <div style="font-family:'Montserrat',sans-serif; font-weight:900; font-size:1.9rem; letter-spacing:-0.02em; color:#003087; margin-bottom:6px;">MONTIRONI</div>
+    <div style="font-family:'DM Mono',monospace; font-size:0.68rem; color:#5a7494; text-transform:uppercase; letter-spacing:0.12em;">Dashboard de Posventa Ford</div>
+  </div>
+  <div id="dropzone"
+    onclick="document.getElementById('file-input').click()"
+    ondragover="event.preventDefault(); this.style.borderColor='#003087'"
+    ondragleave="this.style.borderColor='#b8d4f5'"
+    ondrop="handleDrop(event)">
+    <div style="font-size:2.4rem; margin-bottom:1rem;">📂</div>
+    <div style="font-weight:700; font-size:1rem; margin-bottom:8px; color:#0d1b2e;">Arrastrá tu archivo acá</div>
+    <div style="font-family:'DM Mono',monospace; font-size:0.72rem; color:#5a7494; line-height:1.7;">
+      o hacé clic para elegir<br>
+      <span style="color:#003087; font-weight:600;">.CSV</span> exportado del sistema
+    </div>
+  </div>
+  <div style="font-family:'DM Mono',monospace; font-size:0.66rem; color:#5a7494; text-align:center; line-height:2;">
+    Google Sheets → Archivo → Descargar → CSV
+  </div>
+  <input type="file" id="file-input" accept=".csv" style="display:none" onchange="handleFile(this.files[0])">
+</div>
+
+<header>
+  <div class="logo">
+    <div style="width:1px;height:38px;background:rgba(255,255,255,0.2);"></div>
+    <div>
+      <div class="logo-title">MONTIRONI</div>
+      <div class="logo-sub">Dashboard de Posventa</div>
+    </div>
+  </div>
+  <div id="status-badge">Sin datos</div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('facturacion')">Facturación</div>
+  <div class="tab" onclick="switchTab('garantia')">Garantías</div>
+  <div class="tab" onclick="switchTab('detalle')">Detalle OR</div>
+</div>
+
+<div class="filters">
+  <div class="filter-group">
+    <label>Vista temporal</label>
+    <select id="f-periodo" onchange="onPeriodoChange()">
+      <option value="mes">Mensual</option>
+      <option value="trimestre">Trimestral</option>
+      <option value="anual">Anual</option>
+    </select>
+  </div>
+  <div class="filter-group">
+    <label>Comparar períodos</label>
+    <select id="f-comparar" multiple size="4" style="min-width:165px;"></select>
+    <div class="filter-hint">Ctrl+clic para varios</div>
+  </div>
+  <div class="filter-group">
+    <label>Tipo OR</label>
+    <select id="f-tipo"><option value="">Todos</option></select>
+  </div>
+  <div class="filter-group">
+    <label>Sucursal</label>
+    <select id="f-suc"><option value="">Todas</option></select>
+  </div>
+  <div class="filter-group">
+    <label>Asesor</label>
+    <select id="f-asesor"><option value="">Todos</option></select>
+  </div>
+  <div class="filter-group">
+    <label>Categoría SM</label>
+    <select id="f-catsm"><option value="">Todas</option></select>
+  </div>
+  <div class="filter-group">
+    <label>Motorización</label>
+    <select id="f-motor"><option value="">Todas</option></select>
+  </div>
+  <div class="filter-group">
+    <label>Categoría veh.</label>
+    <select id="f-categ"><option value="">Todas</option></select>
+  </div>
+  <div class="filter-group">
+    <label>SM--</label>
+    <select id="f-sm"><option value="">Todos</option></select>
+  </div>
+  <div class="filter-group">
+    <label>Cat. Operación</label>
+    <select id="f-catop"><option value="">Todas</option></select>
+  </div>
+  <button class="btn-reset" onclick="resetFilters()">✕ Limpiar</button>
+</div>
+
+<main>
+
+  <!-- ═══════════ TAB: FACTURACIÓN ═══════════ -->
+  <div class="page active" id="page-facturacion">
+
+    <div class="kpi-grid">
+      <div class="kpi kpi-hero"><div class="kpi-label">Total sin IVA</div><div class="kpi-value c1" id="k-total">—</div><div class="kpi-sub" id="k-total-cmp"></div></div>
+      <div class="kpi"><div class="kpi-label">Cargo Cliente</div><div class="kpi-value c2" id="k-cargo-ah">—</div><div class="kpi-sub" id="k-cargo-ah-cmp"></div><div class="kpi-sub" id="k-cargo-p" style="margin-top:2px"></div></div>
+      <div class="kpi"><div class="kpi-label">Garantía</div><div class="kpi-value" id="k-gtia-ah">—</div><div class="kpi-sub" id="k-gtia-ah-cmp"></div><div class="kpi-sub" id="k-gtia-p" style="margin-top:2px"></div></div>
+      <div class="kpi"><div class="kpi-label">Cargo Interno</div><div class="kpi-value cg" id="k-ci-ah">—</div><div class="kpi-sub" id="k-ci-ah-cmp"></div><div class="kpi-sub" id="k-ci-p" style="margin-top:2px"></div></div>
+      <div class="kpi"><div class="kpi-label">Mano de Obra</div><div class="kpi-value c2" id="k-mo">—</div></div>
+      <div class="kpi"><div class="kpi-label">Repuestos</div><div class="kpi-value" id="k-rep">—</div></div>
+      <div class="kpi"><div class="kpi-label">Terceros</div><div class="kpi-value c3" id="k-tres">—</div></div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi kpi-hero"><div class="kpi-label">Total OR</div><div class="kpi-value" id="k-ors">—</div><div class="kpi-sub" id="k-ors-cmp"></div></div>
+      <div class="kpi"><div class="kpi-label">Cargo Cliente OR</div><div class="kpi-value c2" id="k-cargo-ors">—</div><div class="kpi-sub" id="k-cargo-ors-cmp"></div></div>
+      <div class="kpi"><div class="kpi-label">Garantía OR</div><div class="kpi-value" id="k-gtia-ors">—</div><div class="kpi-sub" id="k-gtia-ors-cmp"></div></div>
+      <div class="kpi"><div class="kpi-label">Cargo Interno OR</div><div class="kpi-value cg" id="k-ci-ors">—</div><div class="kpi-sub" id="k-ci-ors-cmp"></div></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title" id="timeline-title">Facturación mensual (AH)</div>
+      <div class="chart-wrap" style="height:210px"><canvas id="chartTimeline"></canvas></div>
+    </div>
+
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title">Facturación por tipo de OR</div>
+        <div class="chart-wrap" style="height:230px"><canvas id="chartTipo"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Facturación AH por sucursal</div>
+        <div class="chart-wrap" style="height:230px"><canvas id="chartSuc"></canvas></div>
+      </div>
+    </div>
+
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title">Top 8 modelos por cantidad de OR</div>
+        <div class="chart-wrap" style="height:250px"><canvas id="chartModelo"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">R / AF / T por sucursal (apilado)</div>
+        <div class="chart-wrap" style="height:250px"><canvas id="chartCompo"></canvas></div>
+      </div>
+    </div>
+  <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title">Top 10 modelos — Cant. OR por categoría</div>
+        <div class="chart-wrap" style="height:280px"><canvas id="chartTopModelos"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Top 10 modelos — Facturación Cargo Cliente</div>
+        <div class="chart-wrap" style="height:280px"><canvas id="chartTopCC"></canvas></div>
+      </div>
+    </div>
+
+  <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title">Garantías — Facturación mensual por sucursal</div>
+        <div class="chart-wrap" style="height:260px"><canvas id="chartGtiaFact"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Reclamos garantía por mes — comparado mes anterior</div>
+        <div class="chart-wrap" style="height:260px"><canvas id="chartReclamos"></canvas></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════ TAB: GARANTÍAS ═══════════ -->
+  <div class="page" id="page-garantia">
+
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-label">OR Garantía</div><div class="kpi-value c1" id="g-ors">—</div></div>
+      <div class="kpi"><div class="kpi-label">AH Garantía</div><div class="kpi-value" id="g-total">—</div></div>
+      <div class="kpi"><div class="kpi-label">Promedio por OR</div><div class="kpi-value c3" id="g-avg">—</div></div>
+      <div class="kpi"><div class="kpi-label">R — M.O. Garantía</div><div class="kpi-value c2" id="g-mo">—</div></div>
+      <div class="kpi"><div class="kpi-label">AF — Rep. Garantía</div><div class="kpi-value" id="g-rep">—</div></div>
+      <div class="kpi"><div class="kpi-label">T — 3ros Garantía</div><div class="kpi-value c3" id="g-tres">—</div></div>
+    </div>
+
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title">Garantías por sucursal</div>
+        <div class="chart-wrap" style="height:250px"><canvas id="chartGtiasSuc"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Evolución de garantías (AH)</div>
+        <div class="chart-wrap" style="height:250px"><canvas id="chartGtiasTL"></canvas></div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title">Top 10 modelos con más garantías</div>
+      <div class="chart-wrap" style="height:220px"><canvas id="chartGtiasModelo"></canvas></div>
+    </div>
+  </div>
+
+  <!-- ═══════════ TAB: DETALLE OR ═══════════ -->
+  <div class="page" id="page-detalle">
+    <div class="table-card">
+      <div class="table-hdr">
+        <div class="table-hdr-title">Órdenes de reparación</div>
+        <div style="font-family:var(--font-m); font-size:0.7rem; color:var(--accent);" id="row-count"></div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>OR</th><th>Fecha</th><th>Tipo</th><th>Sucursal</th>
+              <th>Modelo</th><th>Patente</th><th>Asesor</th>
+              <th>R (M.O.)</th><th>AF (Rep.60%)</th><th>T (3ros)</th><th>AH (Total s/IVA)</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTYrrOnz3_t4Mjw2rong_XoJVvvK8fxJgdlKw1wgbA3So05CKn5SMVLgC89i9Bxm5AW4jzqIVvALsKU/pub?gid=1915717599&single=true&output=csv';
+const PROXIES = [
+  u => 'https://corsproxy.io/?url=' + encodeURIComponent(u),
+  u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
+  u => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u),
+  u => u,
+];
+
+let allData = [];
+let gtiaData = []; // guarantee data from second sheet
+let dataLoadedFromFile = false; // true when user manually uploaded CSV
+const GTIA_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTYrrOnz3_t4Mjw2rong_XoJVvvK8fxJgdlKw1wgbA3So05CKn5SMVLgC89i9Bxm5AW4jzqIVvALsKU/pub?gid=1714455106&single=true&output=csv';
+let charts = {};
+const $ = id => document.getElementById(id);
+const PALETTE = ['#003087','#f4a261','#2dc653','#a78bfa','#f72585','#f4d35e','#ee6c4d','#3a8fe8','#06d6a0','#ff6b6b','#0561c1','#b8d4f5'];
+const MONTH_NAMES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+// Maps Spanish month abbreviations to JS month index
+const GTIA_MONTH_MAP = {
+  'ene':0,'feb':1,'mar':2,'abr':3,'may':4,'jun':5,
+  'jul':6,'ago':7,'sept':8,'sep':8,'oct':9,'nov':10,'dic':11
+};
+const GTIA_SUCO_MAP = { 'mons':'Mons','r4':'R4','vm':'VM','ql':'QL','onc':'Onc' };
+
+function parseGtiaRow(row) {
+  // row[0] = period like "ene-25", row[1..5] = Mons,R4,VM,QL,Onc AH
+  // row[9..13] = Mons,R4,VM,QL,Onc reclamos
+  const keys = Object.keys(row);
+  return row;
+}
+
+function parseGtiaMoney(v) {
+  if (!v) return 0;
+  let s = String(v).trim();
+  const neg = s.startsWith('-');
+  // Remove $, spaces, commas (all used as formatting only)
+  s = s.replace(/[$\s,]/g, '');
+  if (neg && !s.startsWith('-')) s = '-' + s;
+  return parseFloat(s) || 0;
+}
+
+// Get gtia AH for a given JS Date period from gtiaData
+function _parseGtiaPeriod(vals) {
+  // Col A is empty, period is in vals[1]
+  const period = String(vals[1]||'').trim().toLowerCase();
+  if (!period || period === '0' || !period.includes('-')) return null;
+  const parts = period.split('-');
+  if (parts.length !== 2) return null;
+  const mIdx = GTIA_MONTH_MAP[parts[0]];
+  const y = parseInt('20' + parts[1]);
+  if (isNaN(mIdx) || isNaN(y)) return null;
+  return {mIdx, y};
+}
+
+function getGtiaAH(year, month) {
+  for (const row of gtiaData) {
+    const vals = Object.values(row);
+    const p = _parseGtiaPeriod(vals);
+    if (!p || p.mIdx !== month || p.y !== year) continue;
+    return parseGtiaMoney(vals[7]); // col G = Total (index 7)
+  }
+  return 0;
+}
+
+function getGtiaAHBySuc(year, month, suc) {
+  const sucIdx = {'Mons':2,'R4':3,'VM':4,'QL':5,'Onc':6};
+  for (const row of gtiaData) {
+    const vals = Object.values(row);
+    const p = _parseGtiaPeriod(vals);
+    if (!p || p.mIdx !== month || p.y !== year) continue;
+    const idx = sucIdx[suc];
+    if (idx === undefined) return 0;
+    return parseGtiaMoney(vals[idx]);
+  }
+  return 0;
+}
+
+function getGtiaReclamos(year, month) {
+  // Reclamos: col J(9)=blank, K(10)=Mons, L(11)=R4, M(12)=VM, N(13)=QL, O(14)=Onc, P(15)=blank, Q(16)=Total
+  for (const row of gtiaData) {
+    const vals = Object.values(row);
+    const p = _parseGtiaPeriod(vals);
+    if (!p || p.mIdx !== month || p.y !== year) continue;
+    return {
+      Mons: parseInt(vals[10])||0, R4: parseInt(vals[11])||0,
+      VM: parseInt(vals[12])||0, QL: parseInt(vals[13])||0,
+      Onc: parseInt(vals[14])||0, total: parseInt(vals[16])||0
+    };
+  }
+  return {Mons:0,R4:0,VM:0,QL:0,Onc:0,total:0};
+}
+
+function getAllGtiaMonths() {
+  const result = [];
+  for (const row of gtiaData) {
+    const vals = Object.values(row);
+    const p = _parseGtiaPeriod(vals);
+    if (!p) continue;
+    const total = parseGtiaMoney(vals[7]); // col G = Total
+    const totalWass = parseGtiaMoney(vals[8]); // col H = Total Wass
+    if (totalWass > 0 || total > 0) result.push({
+      year:p.y, month:p.mIdx, total, totalWass,
+      Mons:parseGtiaMoney(vals[2]), R4:parseGtiaMoney(vals[3]),
+      VM:parseGtiaMoney(vals[4]), QL:parseGtiaMoney(vals[5]), Onc:parseGtiaMoney(vals[6]),
+      reclMons:parseInt(vals[10])||0, reclR4:parseInt(vals[11])||0,
+      reclVM:parseInt(vals[12])||0, reclQL:parseInt(vals[13])||0,
+      reclOnc:parseInt(vals[14])||0, reclTotal:parseInt(vals[16])||0
+    });
+  }
+  return result;
+}
+
+// ── Helpers ──────────────────────────────────────────────
+function parseMoney(v) {
+  if (!v) return 0;
+  let s = String(v).trim().replace(/[$\s]/g,'');
+  if (s.includes(',') && s.includes('.')) s = s.replace(/\./g,'').replace(',','.');
+  else if (s.includes(',')) s = s.replace(',','.');
+  return parseFloat(s) || 0;
+}
+function fmt(n) {
+  if (n >= 1e9) return '$' + (n/1e9).toFixed(2) + 'B';
+  if (n >= 1e6) return '$' + (n/1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return '$' + (n/1e3).toFixed(0) + 'K';
+  return '$' + Math.round(n).toLocaleString('es-AR');
+}
+function fmtFull(n) { return '$' + Math.round(n).toLocaleString('es-AR'); }
+function parseDate(s) {
+  if (!s) return null;
+  const p = s.trim().split('/');
+  if (p.length === 3) return new Date(+p[2], +p[1]-1, +p[0]);
+  return null;
+}
+function getPeriodKey(d, modo) {
+  if (!d) return null;
+  if (modo === 'mes') return MONTH_NAMES[d.getMonth()] + ' ' + d.getFullYear();
+  if (modo === 'trimestre') return d.getFullYear() + ' Q' + Math.ceil((d.getMonth()+1)/3);
+  return String(d.getFullYear());
+}
+function sortPeriodKeys(keys, modo) {
+  return [...keys].sort((a,b) => {
+    if (modo === 'mes') {
+      const [ma,ya]=a.split(' '), [mb,yb]=b.split(' ');
+      return (+ya*12+MONTH_NAMES.indexOf(ma))-(+yb*12+MONTH_NAMES.indexOf(mb));
+    }
+    if (modo === 'trimestre') {
+      const [ya,qa]=a.split(' Q'), [yb,qb]=b.split(' Q');
+      return (+ya*4+ +qa)-(+yb*4+ +qb);
+    }
+    return +a - +b;
+  });
+}
+function isCI(r) { return (r['Cat.']||'').trim() === 'Cargo Interno'; }
+function isGtia(r) { return (r['Cat.']||'').trim() === 'Garantía'; }
+function isCargo(r) { return (r['Cat.']||'').trim() === 'Cargo Cliente'; }
+
+// AH según lógica:
+// - Cargo Interno → solo M.O.
+// - Garantía / Cargo Cliente → Total OR SIN IVA (60% Rep)+(OR Gtia)
+function getAH(r) {
+  if (isCI(r)) return parseMoney(r['Total M.O.']);
+  return parseMoney(r['Total OR SIN IVA (60% Rep)+(OR Gtia)']);
+}
+function getMO(r)  { return parseMoney(r['Total M.O.']); }
+function getAF(r)  { return parseMoney(r['Vta Repuestos 60%']); }
+function getT(r)   { return parseMoney(r['Total 3ros']); }
+
+// ── Tabs ─────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  $('page-' + name).classList.add('active');
+  render();
+}
+
+// ── Period filter ─────────────────────────────────────────
+function onPeriodoChange() { populatePeriodFilters(); render(); }
+function populatePeriodFilters() {
+  const modo = $('f-periodo').value;
+  const keys = new Set();
+  allData.forEach(r => { const k = getPeriodKey(parseDate(r['Cierre']), modo); if (k) keys.add(k); });
+  const sel = $('f-comparar');
+  const prev = [...sel.selectedOptions].map(o => o.value);
+  sel.innerHTML = '';
+  sortPeriodKeys([...keys], modo).forEach(k => {
+    const o = document.createElement('option');
+    o.value = k; o.textContent = k;
+    if (prev.includes(k)) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
+// ── Filter ────────────────────────────────────────────────
+function getFiltered() {
+  const tipo  = $('f-tipo').value, suc = $('f-suc').value;
+  const asesor=$('f-asesor').value;
+  const catsm = $('f-catsm').value, motor=$('f-motor').value;
+  const categ = $('f-categ').value, sm=$('f-sm').value;
+  const catop  = $('f-catop').value;
+  const selected = [...$('f-comparar').selectedOptions].map(o => o.value);
+  const modo = $('f-periodo').value;
+  return allData.filter(r => {
+    if (tipo   && r['Cat.'] !== tipo) return false;
+    if (suc    && r['Sucursal'] !== suc) return false;
+    if (asesor && r['NyA Asesor'] !== asesor) return false;
+    if (catsm  && (r['Categoria SM']||'').trim() !== catsm) return false;
+    if (motor  && (r['Motorizacion']||'').trim() !== motor) return false;
+    if (categ  && (r['Categoria']||'').trim() !== categ) return false;
+    if (sm     && (r['SM--']||'').trim() !== sm) return false;
+    if (catop) { const _v = Object.keys(r).find(k=>k.replace(/[^a-zA-Z]/g,'').toLowerCase().includes('catoper')); if (!_v || (r[_v]||'').trim() !== catop) return false; }
+    if (selected.length > 0) {
+      const k = getPeriodKey(parseDate(r['Cierre']), modo);
+      if (!k || !selected.includes(k)) return false;
+    }
+    return true;
+  });
+}
+
+function populateFilters() {
+  const fields = {
+    'f-tipo':'Cat.','f-suc':'Sucursal',
+    'f-asesor':'NyA Asesor','f-catsm':'Categoria SM','f-motor':'Motorizacion',
+    'f-categ':'Categoria','f-sm':'SM--'
+  };
+  Object.entries(fields).forEach(([id,col]) => {
+    const sel = $(id);
+    while (sel.options.length > 1) sel.remove(1);
+    [...new Set(allData.map(r=>(r[col]||'').trim()).filter(Boolean))].sort()
+      .forEach(v => { const o=document.createElement('option'); o.value=v; o.textContent=v; sel.appendChild(o); });
+  });
+  // Cat Operacion — detect column name automatically
+  const catopKey = allData.length ? Object.keys(allData[0]).find(k => k.replace(/[^a-zA-Z]/g,'').toLowerCase().includes('catoper')) || '' : '';
+  const selCatop = $('f-catop');
+  while (selCatop.options.length > 1) selCatop.remove(1);
+  if (catopKey) {
+    [...new Set(allData.map(r=>(r[catopKey]||'').trim()).filter(Boolean))].sort()
+      .forEach(v => { const o=document.createElement('option'); o.value=v; o.textContent=v; selCatop.appendChild(o); });
+  }
+}
+
+// ── Charts helpers ────────────────────────────────────────
+function destroyChart(k) { if (charts[k]) { charts[k].destroy(); delete charts[k]; } }
+function barLabelPlugin(horizontal) {
+  return {
+    id: 'barLabels',
+    afterDatasetsDraw(chart) {
+      const ctx = chart.ctx;
+      ctx.save();
+      ctx.font = '500 9px DM Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      chart.data.datasets.forEach((ds, di) => {
+        chart.getDatasetMeta(di).data.forEach((bar, ji) => {
+          const val = ds.data[ji];
+          if (!val) return;
+          const label = fmt(val);
+          if (horizontal) {
+            const barW = Math.abs(bar.width || 0);
+            if (barW > 30) {
+              ctx.fillStyle = '#fff';
+              ctx.fillText(label, bar.x - barW/2 + barW*0.55, bar.y);
+            }
+          } else {
+            ctx.fillStyle = '#003087';
+            ctx.fillText(label, bar.x, bar.y - 7);
+          }
+        });
+      });
+      ctx.restore();
+    }
+  };
+}
+
+function makeBar(id, labels, data, opts={}) {
+  const colors = opts.colors || PALETTE;
+  return new Chart($(id), {
+    type: 'bar',
+    plugins: [barLabelPlugin(!!opts.horizontal)],
+    data: { labels, datasets: [{ data, backgroundColor: labels.map((_,i)=>colors[i%colors.length]), borderRadius: 4, borderSkipped: false }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      indexAxis: opts.horizontal ? 'y' : 'x',
+      plugins: { legend: { display: false } },
+      layout: { padding: { top: opts.horizontal ? 0 : 18 } },
+      scales: {
+        x: { ticks: { color:'#5a7494', font:{family:'DM Mono',size:10}, ...(opts.horizontal ? {} : {maxRotation:45,autoSkip:false}) }, grid:{color:'rgba(0,48,135,0.07)'}, ...(opts.stacked ? {stacked:true} : {}) },
+        y: { ticks: { color:'#5a7494', font:{family:'DM Mono',size:10}, callback: opts.horizontal ? undefined : v=>fmt(v) }, grid:{color:'rgba(0,48,135,0.07)'}, ...(opts.stacked ? {stacked:true} : {}) }
+      }
+    }
+  });
+}
+
+// ── Prev month helpers ───────────────────────────────────
+// Detect latest month present in filtered data, then return prev month with same filters
+function getPrevMonthData() {
+  const tipo  = $('f-tipo').value, suc = $('f-suc').value;
+  const asesor=$('f-asesor').value;
+  const catsm = $('f-catsm').value, motor=$('f-motor').value;
+  const categ = $('f-categ').value, sm=$('f-sm').value;
+  const catop  = $('f-catop').value;
+
+  function applyFilters(rows) {
+    return rows.filter(r => {
+      if (tipo   && r['Cat.'] !== tipo) return false;
+      if (suc    && r['Sucursal'] !== suc) return false;
+          if (asesor && r['NyA Asesor'] !== asesor) return false;
+      if (catsm  && (r['Categoria SM']||'').trim() !== catsm) return false;
+      if (motor  && (r['Motorizacion']||'').trim() !== motor) return false;
+      if (categ  && (r['Categoria']||'').trim() !== categ) return false;
+      if (sm     && (r['SM--']||'').trim() !== sm) return false;
+    if (catop) { const _v = Object.keys(r).find(k=>k.replace(/[^a-zA-Z]/g,'').toLowerCase().includes('catoper')); if (!_v || (r[_v]||'').trim() !== catop) return false; }
+      return true;
+    });
+  }
+
+  // Find latest month in the FULL filtered dataset (ignoring period selector)
+  const filtered = applyFilters(allData);
+  let latestY = 0, latestM = 0;
+  filtered.forEach(r => {
+    const d = parseDate(r['Cierre']);
+    if (!d) return;
+    if (d.getFullYear() > latestY || (d.getFullYear() === latestY && d.getMonth() > latestM)) {
+      latestY = d.getFullYear(); latestM = d.getMonth();
+    }
+  });
+
+  // Previous month relative to latest in data
+  const prevY = latestM === 0 ? latestY - 1 : latestY;
+  const prevM = latestM === 0 ? 11 : latestM - 1;
+
+  return applyFilters(allData).filter(r => {
+    const d = parseDate(r['Cierre']);
+    return d && d.getFullYear() === prevY && d.getMonth() === prevM;
+  });
+}
+function cmpBadge(curr, prev, isAmount) {
+  if (!prev || prev === 0) return '';
+  const pct = ((curr - prev) / prev * 100);
+  const sign = pct >= 0 ? '+' : '';
+  const cls  = pct > 0 ? 'cmp-up' : pct < 0 ? 'cmp-down' : 'cmp-flat';
+  const label = isAmount ? fmt(prev) : prev.toLocaleString('es-AR');
+  return `<span class="${cls}">${sign}${pct.toFixed(1)}%</span> vs mes ant. (${label})`;
+}
+
+// ── KPIs facturación ──────────────────────────────────────
+function updateKPIs(data) {
+  // Total = AH from CSV (CC+CI) + Garantia from sheet (Total Wass col H = vals[8])
+  const _modo = $('f-periodo').value;
+  const _selected = [...$('f-comparar').selectedOptions].map(o=>o.value);
+  let gtiaSheetTotal = 0;
+  if (gtiaData.length > 0) {
+    const _allGtia = getAllGtiaMonths();
+    if (_selected.length > 0) {
+      _allGtia.forEach(m => {
+        const _k = getPeriodKey(new Date(m.year, m.month, 1), _modo);
+        if (_selected.includes(_k)) gtiaSheetTotal += m.totalWass;
+      });
+    } else {
+      const _dataPeriods = new Set(data.map(r => getPeriodKey(parseDate(r['Cierre']), _modo)).filter(Boolean));
+      _allGtia.forEach(m => {
+        const _k = getPeriodKey(new Date(m.year, m.month, 1), _modo);
+        if (_dataPeriods.has(_k)) gtiaSheetTotal += m.totalWass;
+      });
+    }
+  }
+  const total = data.reduce((s,r)=>s+getAH(r),0) + gtiaSheetTotal;
+  const mo    = data.reduce((s,r)=>s+getMO(r),0);
+  const rep   = data.reduce((s,r)=>s+getAF(r),0);
+  const tres  = data.reduce((s,r)=>s+getT(r),0);
+  const cargo = data.filter(isCargo);
+  const ci    = data.filter(isCI);
+  const gtia  = data.filter(isGtia);
+  const cantOR = data.reduce((s,r)=>s+(parseInt(r['Cant OR'])||0),0);
+
+  $('k-ors').textContent  = cantOR.toLocaleString('es-AR');
+  $('k-total').textContent= fmt(total);
+  $('k-mo').textContent   = fmt(mo);
+  $('k-rep').textContent  = fmt(rep);
+  $('k-tres').textContent = fmt(tres);
+  // Hide Repuestos and Terceros cards when Cargo Interno filter is active
+  const ciOnly = $('f-tipo').value === 'Cargo Interno';
+  $('k-rep').closest('.kpi').style.display  = ciOnly ? 'none' : '';
+  $('k-tres').closest('.kpi').style.display = ciOnly ? 'none' : '';
+
+  // per-type totals
+  const gtiaORS  = gtia.reduce((s,r)=>s+(parseInt(r['Cant OR'])||0),0);
+  const gtiaAH   = gtia.reduce((s,r)=>s+getAH(r),0);
+  const cargoORS = cargo.reduce((s,r)=>s+(parseInt(r['Cant OR'])||0),0);
+  const cargoAH  = cargo.reduce((s,r)=>s+getAH(r),0);
+  const ciORS    = ci.reduce((s,r)=>s+(parseInt(r['Cant OR'])||0),0);
+  const ciAH     = ci.reduce((s,r)=>s+getAH(r),0);
+
+  $('k-gtia-ors').textContent  = gtiaORS.toLocaleString('es-AR');
+  $('k-gtia-ah').textContent   = fmt(gtiaAH);
+  $('k-gtia-p').textContent    = total ? Math.round(gtiaAH/total*100)+'% del total' : '';
+  $('k-cargo-ors').textContent = cargoORS.toLocaleString('es-AR');
+  $('k-cargo-ah').textContent  = fmt(cargoAH);
+  $('k-cargo-p').textContent   = total ? Math.round(cargoAH/total*100)+'% del total' : '';
+  $('k-ci-ors').textContent    = ciORS.toLocaleString('es-AR');
+  $('k-ci-ah').textContent     = fmt(ciAH);
+  $('k-ci-p').textContent      = total ? Math.round(ciAH/total*100)+'% del total' : '';
+
+  // previous month comparison
+  const prev = getPrevMonthData();
+  const prevTotal = prev.reduce((s,r)=>s+getAH(r),0);
+  $('k-total-cmp').innerHTML = cmpBadge(total, prevTotal, true);
+  const prevCantOR = prev.reduce((s,r)=>s+(parseInt(r['Cant OR'])||0),0);
+  $('k-ors-cmp').innerHTML = cmpBadge(cantOR, prevCantOR, false);
+  const pGtia  = prev.filter(isGtia);
+  const pCargo = prev.filter(isCargo);
+  const pCI    = prev.filter(isCI);
+
+  $('k-gtia-ors-cmp').innerHTML  = cmpBadge(gtiaORS,  pGtia.reduce((s,r)=>s+(parseInt(r['Cant OR'])||0),0), false);
+  $('k-gtia-ah-cmp').innerHTML   = cmpBadge(gtiaAH,   pGtia.reduce((s,r)=>s+getAH(r),0), true);
+  $('k-cargo-ors-cmp').innerHTML = cmpBadge(cargoORS, pCargo.reduce((s,r)=>s+(parseInt(r['Cant OR'])||0),0), false);
+  $('k-cargo-ah-cmp').innerHTML  = cmpBadge(cargoAH,  pCargo.reduce((s,r)=>s+getAH(r),0), true);
+  $('k-ci-ors-cmp').innerHTML    = cmpBadge(ciORS,    pCI.reduce((s,r)=>s+(parseInt(r['Cant OR'])||0),0), false);
+  $('k-ci-ah-cmp').innerHTML     = cmpBadge(ciAH,     pCI.reduce((s,r)=>s+getAH(r),0), true);
+}
+
+// ── KPIs garantías ────────────────────────────────────────
+function updateKPIsGtia(data) {
+  const g = data.filter(isGtia);
+  const total= g.reduce((s,r)=>s+getAH(r),0);
+  const mo   = g.reduce((s,r)=>s+getMO(r),0);
+  const rep  = g.reduce((s,r)=>s+getAF(r),0);
+  const tres = g.reduce((s,r)=>s+getT(r),0);
+  const cantG = g.reduce((s,r)=>s+(parseInt(r['Cant OR'])||0),0);
+  $('g-ors').textContent  = cantG.toLocaleString('es-AR');
+  $('g-total').textContent= fmt(total);
+  $('g-avg').textContent  = cantG ? fmt(total/cantG) : '—';
+  $('g-mo').textContent   = fmt(mo);
+  $('g-rep').textContent  = fmt(rep);
+  $('g-tres').textContent = fmt(tres);
+}
+
+// ── Timeline ──────────────────────────────────────────────
+function updateTimeline(data) {
+  destroyChart('timeline');
+  const modo = $('f-periodo').value;
+  const selected = [...$('f-comparar').selectedOptions].map(o=>o.value);
+  const titles = {mes:'Facturación mensual (AH)',trimestre:'Facturación trimestral (AH)',anual:'Facturación anual (AH)'};
+  $('timeline-title').textContent = titles[modo]||'Facturación';
+
+  if (selected.length <= 1) {
+    const grouped = {};
+    allData.forEach(r => { const k=getPeriodKey(parseDate(r['Cierre']),modo); if(k) grouped[k]=(grouped[k]||0)+getAH(r); });
+    const labels = sortPeriodKeys(Object.keys(grouped), modo);
+    charts['timeline'] = makeBar('chartTimeline', labels, labels.map(k=>grouped[k]||0));
+    return;
+  }
+  // Multi-period comparison
+  const metrics = ['AH (Total)','R (M.O.)','AF (Rep.60%)','T (3ros)'];
+  const datasets = selected.map((period,i) => {
+    const rows = allData.filter(r => getPeriodKey(parseDate(r['Cierre']),modo)===period);
+    return {
+      label: period,
+      data: [rows.reduce((s,r)=>s+getAH(r),0), rows.reduce((s,r)=>s+getMO(r),0), rows.reduce((s,r)=>s+getAF(r),0), rows.reduce((s,r)=>s+getT(r),0)],
+      backgroundColor: PALETTE[i%PALETTE.length], borderRadius:3, borderSkipped:false,
+    };
+  });
+  charts['timeline'] = new Chart($('chartTimeline'), {
+    type:'bar',
+    plugins: [barLabelPlugin(false)],
+    data:{labels:metrics, datasets},
+    options:{responsive:true,maintainAspectRatio:false,
+      layout:{ padding:{ top:18 } },
+      plugins:{legend:{display:true,labels:{color:'#5a7494',font:{family:'DM Mono',size:10},boxWidth:10,padding:10}}},
+      scales:{x:{ticks:{color:'#5a7494',font:{family:'DM Mono',size:10}},grid:{color:'rgba(0,48,135,0.07)'}},
+              y:{ticks:{color:'#5a7494',font:{family:'DM Mono',size:10},callback:v=>fmt(v)},grid:{color:'rgba(0,48,135,0.07)'}}}}
+  });
+}
+
+// ── Main charts facturación ───────────────────────────────
+function updateChartsFact(data) {
+  updateTimeline(data);
+
+  // Tipo donut
+  destroyChart('topModelos');
+  destroyChart('topCC');
+  destroyChart('tipo');
+  destroyChart('gtiaFact');
+  destroyChart('reclamos');
+  const tipoMap = {};
+  data.forEach(r=>{ const k=(r['Cat.']||'Otro').trim(); tipoMap[k]=(tipoMap[k]||0)+getAH(r); });
+  charts['tipo'] = new Chart($('chartTipo'),{
+    type:'doughnut',
+    data:{labels:Object.keys(tipoMap),datasets:[{data:Object.values(tipoMap),backgroundColor:PALETTE,borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#5a7494',font:{family:'DM Mono',size:10},boxWidth:10,padding:10}}}}
+  });
+
+  // Sucursal bar
+  destroyChart('suc');
+  const sucMap={};
+  data.forEach(r=>{ const k=(r['Sucursal']||'').trim(); if(!k)return; sucMap[k]=(sucMap[k]||0)+getAH(r); });
+  const sucS=Object.entries(sucMap).sort((a,b)=>b[1]-a[1]);
+  charts['suc']=makeBar('chartSuc',sucS.map(e=>e[0]),sucS.map(e=>e[1]));
+
+  // Modelo horizontal
+  destroyChart('modelo');
+  const modMap={};
+  data.forEach(r=>{ const k=(r['Modelo Simple']||'Otro').trim(); modMap[k]=(modMap[k]||0)+1; });
+  const modS=Object.entries(modMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  charts['modelo']=makeBar('chartModelo',modS.map(e=>e[0]),modS.map(e=>e[1]),{horizontal:true});
+
+  // Top 10 modelos por OR (CC + Gtia + CI grouped)
+  destroyChart('topModelos');
+  const topMap = {};
+  data.forEach(r => {
+    const mod = (r['Modelo Simple']||'Otro').trim();
+    const cat = (r['Cat.']||'').trim();
+    if (!topMap[mod]) topMap[mod] = {'Cargo Cliente':0,'Garantía':0,'Cargo Interno':0};
+    if (topMap[mod][cat] !== undefined) topMap[mod][cat] += parseInt(r['Cant OR'])||0;
+    else topMap[mod]['Cargo Cliente'] += 0;
+  });
+  const topTotal = Object.entries(topMap)
+    .map(([k,v]) => [k, v['Cargo Cliente']+v['Garantía']+v['Cargo Interno']])
+    .sort((a,b)=>b[1]-a[1]).slice(0,10).map(e=>e[0]);
+  charts['topModelos'] = new Chart($('chartTopModelos'), {
+    type: 'bar',
+    data: {
+      labels: topTotal,
+      datasets: [
+        { label:'Cargo Cliente', data: topTotal.map(m=>(topMap[m]||{})['Cargo Cliente']||0), backgroundColor:'#003087', borderRadius:3, borderSkipped:false },
+        { label:'Garantía',      data: topTotal.map(m=>(topMap[m]||{})['Garantía']||0),      backgroundColor:'#f4a261', borderRadius:3, borderSkipped:false },
+        { label:'Cargo Interno', data: topTotal.map(m=>(topMap[m]||{})['Cargo Interno']||0), backgroundColor:'#2dc653', borderRadius:3, borderSkipped:false },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:true, position:'bottom', labels:{ color:'#5a7494', font:{family:'DM Mono',size:10}, boxWidth:10, padding:10 }}},
+      scales:{
+        x:{ stacked:true, ticks:{color:'#5a7494',font:{family:'DM Mono',size:10},maxRotation:35,autoSkip:false}, grid:{color:'rgba(0,48,135,0.07)'} },
+        y:{ stacked:true, ticks:{color:'#5a7494',font:{family:'DM Mono',size:10}}, grid:{color:'rgba(0,48,135,0.07)'} }
+      }
+    }
+  });
+
+  // Top 10 modelos Cargo Cliente por AH
+  destroyChart('topCC');
+  const ccMap = {};
+  data.filter(isCargo).forEach(r => {
+    const m = (r['Modelo Simple']||'Otro').trim();
+    ccMap[m] = (ccMap[m]||0) + getAH(r);
+  });
+  const ccSorted = Object.entries(ccMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  charts['topCC'] = new Chart($('chartTopCC'), {
+    type:'bar', indexAxis:'y',
+    plugins:[barLabelPlugin(true)],
+    data:{ labels:ccSorted.map(e=>e[0]), datasets:[{ data:ccSorted.map(e=>e[1]), backgroundColor:'#003087', borderRadius:4, borderSkipped:false }]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false }},
+      layout:{ padding:{ right:10 }},
+      scales:{
+        x:{ ticks:{color:'#5a7494',font:{family:'DM Mono',size:10},callback:v=>fmt(v)}, grid:{color:'rgba(0,48,135,0.07)'} },
+        y:{ ticks:{color:'#5a7494',font:{family:'DM Mono',size:10}}, grid:{color:'rgba(0,48,135,0.07)'} }
+      }
+    }
+  });
+
+  // Garantías facturación por sucursal (from gtia sheet)
+  destroyChart('gtiaFact');
+  destroyChart('reclamos');
+  const gtiaMonths = getAllGtiaMonths();
+  if (gtiaMonths.length > 0) {
+    const SUCS = ['Mons','R4','VM','QL','Onc'];
+    const SUC_COLORS = {'Mons':'#003087','R4':'#f4a261','VM':'#2dc653','QL':'#a78bfa','Onc':'#f72585'};
+    const gtiaLabels = gtiaMonths.map(m => MONTH_NAMES[m.month] + ' ' + m.year);
+
+    // Gtia facturación stacked by sucursal
+    charts['gtiaFact'] = new Chart($('chartGtiaFact'), {
+      type:'bar',
+      data:{ labels: gtiaLabels, datasets: SUCS.map(s=>({
+        label:s, data: gtiaMonths.map(m=>m[s]||0),
+        backgroundColor: SUC_COLORS[s], borderRadius:3, borderSkipped:false,
+      }))},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:true,position:'bottom',labels:{color:'#5a7494',font:{family:'DM Mono',size:10},boxWidth:10,padding:8}}},
+        scales:{
+          x:{stacked:true,ticks:{color:'#5a7494',font:{family:'DM Mono',size:10},maxRotation:45,autoSkip:false},grid:{color:'rgba(0,48,135,0.07)'}},
+          y:{stacked:true,ticks:{color:'#5a7494',font:{family:'DM Mono',size:10},callback:v=>fmt(v)},grid:{color:'rgba(0,48,135,0.07)'}}
+        }
+      }
+    });
+
+    // Reclamos: last 2 months comparison grouped bar
+    const lastTwo = gtiaMonths.filter(m=>m.reclTotal>0).slice(-2);
+    if (lastTwo.length >= 1) {
+      const reclLabels = SUCS;
+      const datasets = lastTwo.map((m,i)=>({
+        label: MONTH_NAMES[m.month]+' '+m.year,
+        data: SUCS.map(s => m['recl'+s]||0),
+        backgroundColor: i===0 ? 'rgba(0,48,135,0.35)' : '#003087',
+        borderRadius:3, borderSkipped:false,
+      }));
+      charts['reclamos'] = new Chart($('chartReclamos'), {
+        type:'bar',
+        data:{labels:reclLabels, datasets},
+        options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:true,position:'bottom',labels:{color:'#5a7494',font:{family:'DM Mono',size:10},boxWidth:10,padding:8}}},
+          scales:{
+            x:{ticks:{color:'#5a7494',font:{family:'DM Mono',size:10}},grid:{color:'rgba(0,48,135,0.07)'}},
+            y:{ticks:{color:'#5a7494',font:{family:'DM Mono',size:10}},grid:{color:'rgba(0,48,135,0.07)'}}
+          }
+        }
+      });
+    }
+  }
+
+  // Composición apilada
+  destroyChart('compo');
+  const sucs=[...new Set(data.map(r=>(r['Sucursal']||'').trim()).filter(Boolean))].sort();
+  const defs=[
+    {label:'R — M.O.',fn:getMO,color:'#003087'},
+    {label:'AF — Rep.60%',fn:getAF,color:'#f4a261'},
+    {label:'Terceros',fn:getT,color:'#2dc653'},
+  ];
+  charts['compo']=new Chart($('chartCompo'),{
+    type:'bar',
+    data:{labels:sucs,datasets:defs.map(d=>({
+      label:d.label,
+      data:sucs.map(s=>data.filter(r=>(r['Sucursal']||'').trim()===s).reduce((a,r)=>a+d.fn(r),0)),
+      backgroundColor:d.color,borderRadius:3,borderSkipped:false,
+    }))},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:true,position:'bottom',labels:{color:'#5a7494',font:{family:'DM Mono',size:10},boxWidth:10,padding:10}}},
+      scales:{x:{stacked:true,ticks:{color:'#5a7494',font:{family:'DM Mono',size:10}},grid:{color:'rgba(0,48,135,0.07)'}},
+              y:{stacked:true,ticks:{color:'#5a7494',font:{family:'DM Mono',size:10},callback:v=>fmt(v)},grid:{color:'rgba(0,48,135,0.07)'}}}}
+  });
+}
+
+// ── Garantía charts ───────────────────────────────────────
+function updateChartsGtia(data) {
+  const g = data.filter(isGtia);
+
+  // Por sucursal
+  destroyChart('gtiasSuc');
+  const sMap={};
+  g.forEach(r=>{ const k=(r['Sucursal']||'').trim(); if(!k)return; sMap[k]=(sMap[k]||0)+getAH(r); });
+  const sS=Object.entries(sMap).sort((a,b)=>b[1]-a[1]);
+  charts['gtiasSuc']=makeBar('chartGtiasSuc',sS.map(e=>e[0]),sS.map(e=>e[1]),{colors:['#003087']});
+
+  // Evolución temporal
+  destroyChart('gtiasTL');
+  const modo=$('f-periodo').value;
+  const tMap={};
+  g.forEach(r=>{ const k=getPeriodKey(parseDate(r['Cierre']),modo); if(k) tMap[k]=(tMap[k]||0)+getAH(r); });
+  const tLabels=sortPeriodKeys(Object.keys(tMap),modo);
+  charts['gtiasTL']=new Chart($('chartGtiasTL'),{
+    type:'line',
+    data:{labels:tLabels,datasets:[{data:tLabels.map(k=>tMap[k]||0),borderColor:'#003087',backgroundColor:'rgba(0,48,135,0.08)',pointBackgroundColor:'#003087',pointRadius:3,tension:0.3,fill:true}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#5a7494',font:{family:'DM Mono',size:10},maxRotation:45,autoSkip:false},grid:{color:'rgba(0,48,135,0.07)'}},
+              y:{ticks:{color:'#5a7494',font:{family:'DM Mono',size:10},callback:v=>fmt(v)},grid:{color:'rgba(0,48,135,0.07)'}}}}
+  });
+
+  // Top modelos
+  destroyChart('gtiasModelo');
+  const mMap={};
+  g.forEach(r=>{ const k=(r['Modelo Simple']||'Otro').trim(); mMap[k]=(mMap[k]||0)+1; });
+  const mS=Object.entries(mMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  charts['gtiasModelo']=makeBar('chartGtiasModelo',mS.map(e=>e[0]),mS.map(e=>e[1]),{colors:PALETTE});
+}
+
+// ── Detalle table ─────────────────────────────────────────
+function updateTable(data) {
+  const tbody = $('tbody');
+  tbody.innerHTML = '';
+  const MAX = 300;
+  $('row-count').textContent = data.length.toLocaleString('es-AR') + ' registros' + (data.length > MAX ? ' (mostrando primeros '+MAX+')':'');
+  data.slice(0, MAX).forEach(r => {
+    const cat = (r['Cat.']||'').trim();
+    const badgeCls = isGtia(r) ? 'badge-gtia' : isCI(r) ? 'badge-ci' : 'badge-cargo';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r['Orden Rep.']||'—'}</td>
+      <td>${r['Cierre']||'—'}</td>
+      <td><span class="badge ${badgeCls}">${cat}</span></td>
+      <td>${r['Sucursal']||'—'}</td>
+      <td>${r['Modelo Simple']||r['Modelo']||'—'}</td>
+      <td>${r['Patente']||'—'}</td>
+      <td>${(r['NyA Asesor']||'—').split(' ').slice(0,2).join(' ')}</td>
+      <td style="text-align:right">${fmtFull(getMO(r))}</td>
+      <td style="text-align:right">${fmtFull(getAF(r))}</td>
+      <td style="text-align:right">${fmtFull(getT(r))}</td>
+      <td style="text-align:right; font-weight:600; color:#003087">${fmtFull(getAH(r))}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Render ────────────────────────────────────────────────
+function render() {
+  const data = getFiltered();
+  const activePage = document.querySelector('.page.active');
+  if (!activePage) return;
+  const pageId = activePage.id;
+
+  if (pageId === 'page-facturacion') {
+    updateKPIs(data);
+    updateChartsFact(data);
+  } else if (pageId === 'page-garantia') {
+    updateKPIsGtia(data);
+    updateChartsGtia(data);
+  } else if (pageId === 'page-detalle') {
+    updateTable(data);
+  }
+}
+
+function resetFilters() {
+  ['f-tipo','f-suc','f-asesor','f-catsm','f-motor','f-categ','f-sm','f-catop'].forEach(id=>$(id).value='');
+  $('f-periodo').value='mes';
+  [...$('f-comparar').options].forEach(o=>o.selected=false);
+  render();
+}
+
+['f-tipo','f-suc','f-asesor','f-catsm','f-motor','f-categ','f-sm','f-catop','f-comparar']
+  .forEach(id => $(id).addEventListener('change', render));
+
+// ── File loading ──────────────────────────────────────────
+function showUploadScreen() {
+  $('loading').style.display='none';
+  $('upload-screen').style.display='flex';
+}
+function handleDrop(e) {
+  e.preventDefault();
+  $('dropzone').style.borderColor='#b8d4f5';
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+}
+function handleFile(file) {
+  if (!file) return;
+  $('upload-screen').style.display='none';
+  $('loading').style.display='flex';
+  $('loading-text').textContent='Procesando '+file.name+'...';
+  Papa.parse(file, {
+    header:true, skipEmptyLines:true,
+    complete(res) {
+      if (!res.data || res.data.length < 1) { $('loading-text').textContent='Archivo vacío o formato incorrecto.'; return; }
+      dataLoadedFromFile = true;
+      allData = res.data;
+      $('loading').style.display='none';
+      const b=$('status-badge');
+      b.textContent=allData.length.toLocaleString('es-AR')+' registros · '+file.name;
+      b.className='ok';
+      populateFilters();
+      populatePeriodFilters();
+      loadGtiaSheet();
+    },
+    error() { $('loading-text').textContent='Error al leer el archivo.'; }
+  });
+}
+function loadGtiaSheet() {
+  const proxies = [
+    u => 'https://corsproxy.io/?url=' + encodeURIComponent(u),
+    u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
+    u => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u),
+    u => u,
+  ];
+  let gtiaLoaded = false; // prevent double-render from late proxy responses
+  function tryGtia(i) {
+    if (gtiaLoaded) return;
+    if (i >= proxies.length) { console.warn('Could not load gtia sheet'); render(); return; }
+    Papa.parse(proxies[i](GTIA_CSV), {
+      download:true, header:false, skipEmptyLines:true,
+      complete(res) {
+        if (gtiaLoaded) return; // another proxy already succeeded
+        if (!res.data || res.data.length < 2) { tryGtia(i+1); return; }
+        gtiaLoaded = true;
+        const rows = res.data;
+        gtiaData = rows.slice(1).map(r => {
+          const obj = {};
+          r.forEach((v,idx) => { obj[idx] = v; });
+          return obj;
+        });
+        // DEBUG
+        const dbg = gtiaData.find(r => String(Object.values(r)[1]||'').trim().toLowerCase().startsWith('may-26'));
+        if (dbg) {
+          const v = Object.values(dbg);
+          console.log('may-26 row length:', v.length);
+          v.forEach((val,i) => { if(val && val!=='$0') console.log('  idx '+i+':', val); });
+        } else {
+          console.log('may-26 NOT FOUND, first rows:');
+          gtiaData.slice(0,3).forEach(r => console.log(Object.values(r).slice(0,10)));
+        }
+        render();
+      },
+      error() { if (!gtiaLoaded) tryGtia(i+1); }
+    });
+  }
+  tryGtia(0);
+}
+
+function tryLoad(i) {
+  if (i >= PROXIES.length) { showUploadScreen(); return; }
+  Papa.parse(PROXIES[i](SHEET_CSV), {
+    download:true, header:true, skipEmptyLines:true,
+    complete(res) {
+      if (dataLoadedFromFile) return; // user already loaded manually, ignore
+      if (!res.data || res.data.length < 2) { tryLoad(i+1); return; }
+      allData = res.data;
+      $('loading').style.display='none';
+      const b=$('status-badge'); b.textContent=allData.length.toLocaleString('es-AR')+' registros cargados'; b.className='ok';
+      populateFilters(); populatePeriodFilters();
+      loadGtiaSheet(); // load guarantee sheet (render called inside)
+    },
+    error() { if (!dataLoadedFromFile) tryLoad(i+1); }
+  });
+}
+tryLoad(0);
+</script>
+</body>
+</html>
